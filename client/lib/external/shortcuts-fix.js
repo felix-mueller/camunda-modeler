@@ -43,20 +43,6 @@ function ShortcutsFix(app, isMac) {
 
     var activeElement = document.activeElement;
 
-    // prevent default behavior when editing DMN decision table
-    if (isEnter(event.key)
-        && isTableSelected(app)) {
-      e.preventDefault();
-
-      if (event.ctrlKey || event.metaKey) {
-        app.triggerAction('insertNewLine');
-      } else if (event.shiftKey) {
-        app.triggerAction('selectPreviousRow');
-      } else {
-        app.triggerAction('selectNextRow');
-      }
-    }
-
     if (isMac) {
       return;
     }
@@ -98,28 +84,4 @@ module.exports = ShortcutsFix;
 
 function isPropertiesInput(el) {
   return el && domClosest(el, '.properties');
-}
-
-function isEnter(key) {
-  return key === 'Enter';
-}
-
-function isTableSelected(app) {
-  if (app.activeTab && app.activeTab.activeEditor) {
-    var activeEditor = app.activeTab.activeEditor;
-
-    if (activeEditor.getActiveEditorName) {
-      var activeEditorName = activeEditor.getActiveEditorName();
-
-      if (activeEditorName === 'table') {
-        return activeEditor
-          .getModeler()
-            .getActiveViewer()
-              .get('selection')
-                .get() !== null;
-      }
-    }
-  }
-
-  return false;
 }

@@ -324,7 +324,9 @@ MenuBuilder.prototype.appendBaseEditActions = function() {
 
   this.appendSeparator();
 
-  this.appendCopyPaste();
+  if (this.opts.state.copy) {
+    this.appendCopyPaste();
+  }
 
   return this;
 };
@@ -651,26 +653,25 @@ MenuBuilder.prototype.appendDmnActions = function() {
   var activeEditor = this.opts.state.activeEditor;
 
   if (activeEditor === 'diagram') {
-    // DRD EDITOR
-    this.appendSeparator();
 
-    this.menu.append(new MenuItem({
-      label: 'Lasso Tool',
-      accelerator: 'L',
-      enabled: this.opts.state.inactiveInput,
-      click: function() {
-        app.emit('menu:action', 'lassoTool');
-      }
-    }));
+    // DRD editor
+    // this.menu.append(new MenuItem({
+    //   label: 'Lasso Tool',
+    //   accelerator: 'L',
+    //   enabled: this.opts.state.inactiveInput,
+    //   click: function() {
+    //     app.emit('menu:action', 'lassoTool');
+    //   }
+    // }));
 
-    this.menu.append(new MenuItem({
-      label: 'Edit Label',
-      accelerator: 'E',
-      enabled: this.opts.state.elementsSelected,
-      click: function() {
-        app.emit('menu:action', 'directEditing');
-      }
-    }));
+    // this.menu.append(new MenuItem({
+    //   label: 'Edit Label',
+    //   accelerator: 'E',
+    //   enabled: this.opts.state.elementsSelected,
+    //   click: function() {
+    //     app.emit('menu:action', 'directEditing');
+    //   }
+    // }));
 
     this.appendSeparator();
 
@@ -679,8 +680,8 @@ MenuBuilder.prototype.appendDmnActions = function() {
     this.appendRemoveSelection();
 
   } else if (activeEditor === 'table') {
-    // TABLE EDITOR
-
+    
+    // decision table editor
     this.appendSeparator();
 
     this.menu.append(new MenuItem({
@@ -689,36 +690,28 @@ MenuBuilder.prototype.appendDmnActions = function() {
         label: 'At End',
         accelerator: 'CommandOrControl+D',
         click: function() {
-          app.emit('menu:action', 'ruleAdd');
+          app.emit('menu:action', 'addRule');
         }
       }, {
         label: 'Above Selected',
         enabled: this.opts.state.dmnRuleEditing,
         click: function() {
-          app.emit('menu:action', 'ruleAddAbove');
+          app.emit('menu:action', 'addRuleAbove');
         }
       }, {
         label: 'Below Selected',
         enabled: this.opts.state.dmnRuleEditing,
         click: function() {
-          app.emit('menu:action', 'ruleAddBelow');
+          app.emit('menu:action', 'addRuleBelow');
         }
       }])
-    }));
-
-    this.menu.append(new MenuItem({
-      label: 'Clear Rule',
-      enabled: this.opts.state.dmnRuleEditing,
-      click: function() {
-        app.emit('menu:action', 'ruleClear');
-      }
     }));
 
     this.menu.append(new MenuItem({
       label: 'Remove Rule',
       enabled: this.opts.state.dmnRuleEditing,
       click: function() {
-        app.emit('menu:action', 'ruleRemove');
+        app.emit('menu:action', 'removeRule');
       }
     }));
 
@@ -729,16 +722,12 @@ MenuBuilder.prototype.appendDmnActions = function() {
       submenu: Menu.buildFromTemplate([{
         label: 'Input',
         click: function() {
-          app.emit('menu:action', 'clauseAdd', {
-            type: 'input'
-          });
+          app.emit('menu:action', 'addInput');
         }
       }, {
         label: 'Output',
         click: function() {
-          app.emit('menu:action', 'clauseAdd', {
-            type: 'output'
-          });
+          app.emit('menu:action', 'addOutput');
         }
       }, {
         type: 'separator'
@@ -746,13 +735,13 @@ MenuBuilder.prototype.appendDmnActions = function() {
         label: 'Left of selected',
         enabled: this.opts.state.dmnClauseEditing,
         click: function() {
-          app.emit('menu:action', 'clauseAddLeft');
+          app.emit('menu:action', 'addClauseLeft');
         }
       }, {
         label: 'Right of selected',
         enabled: this.opts.state.dmnClauseEditing,
         click: function() {
-          app.emit('menu:action', 'clauseAddRight');
+          app.emit('menu:action', 'addClauseRight');
         }
       }])
     }));
@@ -761,46 +750,7 @@ MenuBuilder.prototype.appendDmnActions = function() {
       label: 'Remove Clause',
       enabled: this.opts.state.dmnClauseEditing,
       click: function() {
-        app.emit('menu:action', 'clauseRemove');
-      }
-    }));
-
-    this.appendSeparator();
-
-    this.menu.append(new MenuItem({
-      label: 'Insert New Line',
-      accelerator: 'CommandOrControl + Enter',
-      enabled: this.opts.state.dmnRuleEditing,
-      click: function() {
-        app.emit('menu:action', 'insertNewLine');
-      }
-    }));
-
-    this.menu.append(new MenuItem({
-      label: 'Select Next Row',
-      accelerator: 'Enter',
-      enabled: this.opts.state.dmnRuleEditing,
-      click: function() {
-        app.emit('menu:action', 'selectNextRow');
-      }
-    }));
-
-    this.menu.append(new MenuItem({
-      label: 'Select Previous Row',
-      accelerator: 'Shift + Enter',
-      enabled: this.opts.state.dmnRuleEditing,
-      click: function() {
-        app.emit('menu:action', 'selectPreviousRow');
-      }
-    }));
-
-    this.appendSeparator();
-
-    this.menu.append(new MenuItem({
-      label: 'Toggle Editing Mode',
-      accelerator: 'CommandOrControl + M',
-      click: function() {
-        app.emit('menu:action', 'toggleEditingMode');
+        app.emit('menu:action', 'removeClause');
       }
     }));
   }
@@ -874,6 +824,8 @@ MenuBuilder.prototype.appendEditMenu = function() {
       submenu: builder.get()
     }));
   }
+
+
 
   return this;
 };

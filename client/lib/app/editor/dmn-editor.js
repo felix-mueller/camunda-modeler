@@ -2,7 +2,8 @@
 
 var inherits = require('inherits');
 
-var assign = require('lodash/object/assign');
+var assign = require('lodash/object/assign'),
+    forEach = require('lodash/collection/forEach');
 
 var DiagramEditor = require('./diagram-editor');
 
@@ -36,6 +37,11 @@ function DmnEditor(options) {
     if (warnings && warnings.length) {
       console.log(warnings);
     }
+
+    // TODO(philippfromme): makes sure XML is always saved
+    // since we have more than one command stack in some cases XML wouldn't be saved
+    // XML editor then wouldn't show actual XML
+    this.initialState.forceSaveXML = true;
   });
 
   this._stackIdx = -1;
@@ -52,25 +58,13 @@ DmnEditor.prototype.triggerAction = function(action, options) {
 
   var modeler = this.getModeler();
 
-  modeler = modeler.getActiveEditor();
-
   var editorActions = modeler.getActiveViewer().get('editorActions', false);
 
   if (!editorActions) {
     return;
   }
 
-  if (action === 'clauseAdd') {
-    opts = options.type;
-  }
-
-
   debug('editor-actions', action, options);
-
-  // ignore all editor actions if there's a current active input or textarea
-  if ([ 'insertNewLine', 'selectNextRow', 'selectPreviousRow' ].indexOf(action) === -1 && isInputActive()) {
-    return;
-  }
 
   // forward other actions to editor actions
   editorActions.trigger(action, opts);
@@ -83,7 +77,8 @@ DmnEditor.prototype.triggerAction = function(action, options) {
  */
 DmnEditor.prototype.updateState = function(options = {}) {
 
-  var initialState = this.initialState;
+  var modeler = this.getModeler(),
+      initialState = this.initialState;
 
   // ignore change events during import
   if (initialState.importing) {
@@ -95,12 +90,58 @@ DmnEditor.prototype.updateState = function(options = {}) {
     activeEditor: this.getActiveEditorName(),
     undo: !!initialState.undo,
     redo: !!initialState.redo,
-    dirty: initialState.dirty || options.contentChanged || false,
+    dirty: initialState.dirty,
     exportAs: false
   };
 
-  if (stateContext.activeEditor === 'diagram') {
-    stateContext.exportAs = [ 'png', 'jpeg', 'svg' ];
+  // no diagram to harvest, good day maam!
+  if (isImported(modeler)) {
+    var activeView = modeler.getActiveView(),
+        activeViewer = modeler.getActiveViewer(),
+        commandStack = activeViewer.get('commandStack');
+  
+    var selection;
+  
+    if (activeView.type === 'decision-table') {
+      var decisionTableViewer = modeler.getActiveViewer();
+  
+      selection = decisionTableViewer.get('selection');
+  
+      if (selection.hasSelection()) {
+        stateContext.dmnClauseEditing = true;
+        stateContext.dmnRuleEditing = true;
+      } else {
+        stateContext.dmnClauseEditing = false;
+        stateContext.dmnRuleEditing = false;
+      }
+    } else if (activeView.type === 'drd') {
+      var drdViewer = modeler.getActiveViewer();
+  
+      selection = drdViewer.get('selection');
+      
+      stateContext.elementsSelected = !!selection.get().length;
+
+      // TODO(philippfromme): fix, this always returns false
+      // when wrapping this with setTimeout it works as expected
+      var inputActive = isInputActive();
+    
+      stateContext.inactiveInput = !inputActive;
+
+      stateContext.exportAs = [ 'png', 'jpeg', 'svg' ];
+    }
+
+    var dirty = (
+      initialState.dirty ||
+      initialState.reimported ||
+      initialState.stackIndex !== this.getStackIndex()
+    );
+  
+    stateContext = assign(stateContext, {
+      undo: commandStack.canUndo(),
+      redo: commandStack.canRedo(),
+      dirty: dirty,
+      editable: true
+    });
   }
 
   this.emit('state-updated', stateContext);
@@ -108,7 +149,18 @@ DmnEditor.prototype.updateState = function(options = {}) {
 
 DmnEditor.prototype.getStackIndex = function() {
   // TODO(nikku): extract meaningful stack index (if possible at all?)
-  return (--this._stackIdx);
+  // TODO(philippfromme): when switching viewer command stack of previous viewer is reset
+  // therefore dirty checking doesn't work anymore
+
+  var stackIdx = -1;
+
+  forEach(this.getModeler()._viewers, viewer => {
+    var commandStack = viewer.get('commandStack');
+
+    stackIdx += commandStack._stackIdx + 1;
+  });
+
+  return stackIdx;
 };
 
 DmnEditor.prototype.getActiveEditorName = function() {
