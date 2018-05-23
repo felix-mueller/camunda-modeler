@@ -93,45 +93,53 @@ function Log(options) {
 
     return (
       <div className="log">
-        <div className="header" >
-          <div className="log-button log-button-toggle" onClick={ this.compose('toggleLog') }>Log</div>
+        <div className="header">
+          <div
+            className="log-button log-button-toggle"
+            onClick={ this.compose('toggleLog') }>
+           Log
+          </div>
           { buttons }
         </div>
-        <div className="resize-handle"
-             draggable="true"
-             onDragStart={ dragger( this.compose('resizeLog', copy(logLayout))) }></div>
+        <div
+          className="resize-handle"
+          draggable="true"
+          onDragStart={
+            dragger(this.compose('resizeLog', copy(logLayout)))
+          }></div>
         {
           logLayout.open
-            ? <div className="entries"
-                   style={ logStyle }
-                   tabIndex="0"
-                   onKeydown={ this.compose('closeOnEscape') }>
-                {
-                  entries.map(function(e) {
+            ? <div
+              className="entries"
+              style={ logStyle }
+              tabIndex="0"
+              onKeydown={ this.compose('closeOnEscape') }>
+              {
+                entries.map(function(e) {
 
-                    var action = e.action;
+                  var action = e.action;
 
-                    var msg;
+                  var msg;
 
-                    if (e.message) {
-                      msg = e.message + '  [' + e.category + ']';
-                    } else {
-                      msg = ' ';
-                    }
+                  if (e.message) {
+                    msg = e.message + '  [' + e.category + ']';
+                  } else {
+                    msg = ' ';
+                  }
 
-                    var html =
-                      <div className="entry" scrollTo={ e === focusedEntry }>
-                        {
-                          action
-                            ? <a href="#" onClick={ action }>{ msg }</a>
-                            : <span>{ msg }</span>
-                        }
-                      </div>;
+                  var html =
+                    <div className="entry" scrollTo={ e === focusedEntry }>
+                      {
+                        action
+                          ? <a href="#" onClick={ action }>{ msg }</a>
+                          : <span>{ msg }</span>
+                      }
+                    </div>;
 
-                    return html;
-                  })
-                }
-              </div>
+                  return html;
+                })
+              }
+            </div>
             : null
         }
       </div>

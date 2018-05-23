@@ -2,8 +2,14 @@
 
 var inherits = require('inherits');
 
-var assign = require('lodash/object/assign'),
-    forEach = require('lodash/collection/forEach');
+import {
+  assign,
+  forEach
+} from 'min-dash';
+
+import {
+  closest as domClosest
+} from 'min-dom';
 
 var DiagramEditor = require('./diagram-editor');
 
@@ -16,6 +22,7 @@ import DmnJS from './dmn/CamundaDmnEditor';
 var diagramOriginModule = require('diagram-js-origin');
 
 var generateImage = require('app/util/generate-image'),
+    isInput = require('util/dom/is-input'),
     isInputActive = require('util/dom/is-input').active;
 
 var debug = require('debug')('dmn-editor');
@@ -45,6 +52,13 @@ function DmnEditor(options) {
   });
 
   this._stackIdx = -1;
+
+  // update state so that it reflects that an 'input' is active
+  this.on('input:focused', function(event) {
+    if (isInput.isInput(event.target) && domClosest(event.target, '.dmn-editor')) {
+      this.updateState();
+    }
+  });
 }
 
 inherits(DmnEditor, DiagramEditor);
@@ -99,14 +113,14 @@ DmnEditor.prototype.updateState = function(options = {}) {
     var activeView = modeler.getActiveView(),
         activeViewer = modeler.getActiveViewer(),
         commandStack = activeViewer.get('commandStack');
-  
+
     var selection;
-  
-    if (activeView.type === 'decision-table') {
+
+    if (activeView.type === 'decisionTable') {
       var decisionTableViewer = modeler.getActiveViewer();
-  
+
       selection = decisionTableViewer.get('selection');
-  
+
       if (selection.hasSelection()) {
         stateContext.dmnClauseEditing = true;
         stateContext.dmnRuleEditing = true;
@@ -116,15 +130,15 @@ DmnEditor.prototype.updateState = function(options = {}) {
       }
     } else if (activeView.type === 'drd') {
       var drdViewer = modeler.getActiveViewer();
-  
+
       selection = drdViewer.get('selection');
-      
+
       stateContext.elementsSelected = !!selection.get().length;
 
       // TODO(philippfromme): fix, this always returns false
       // when wrapping this with setTimeout it works as expected
       var inputActive = isInputActive();
-    
+
       stateContext.inactiveInput = !inputActive;
 
       stateContext.exportAs = [ 'png', 'jpeg', 'svg' ];
@@ -135,7 +149,7 @@ DmnEditor.prototype.updateState = function(options = {}) {
       initialState.reimported ||
       initialState.stackIndex !== this.getStackIndex()
     );
-  
+
     stateContext = assign(stateContext, {
       undo: commandStack.canUndo(),
       redo: commandStack.canRedo(),
@@ -169,11 +183,7 @@ DmnEditor.prototype.getActiveEditorName = function() {
 
   var activeView = modeler.getActiveView();
 
-  switch (activeView && activeView.type) {
-  case 'decision-table': return 'table';
-  case 'literal-expression': return 'literal-expression';
-  default: return 'diagram';
-  }
+  return activeView && activeView.type;
 };
 
 
@@ -208,8 +218,11 @@ DmnEditor.prototype.getModeler = function() {
     this.modeler.on('view.selectionChanged', updateState());
 
     // log editor errors
+    // log errors into log
     this.modeler.on('error', ({ error, viewer }) => {
-      this.emit('log', [ [ 'error', error ] ]);
+      this.emit('log', [
+        [ 'error', error.stack ]
+      ]);
       this.emit('log:toggle', { open: true });
     });
   }
@@ -221,21 +234,21 @@ DmnEditor.prototype.createModeler = function($el) {
   return new DmnJS({
     'position': 'absolute',
     'container': $el,
-    'decision-table': {
-      minColWidth: 200,
-      tableName: 'DMN Table'
-    },
     'drd': {
       additionalModules: [
         diagramOriginModule
       ]
+    },
+    common: {
+      keyboard: {
+        bindTo: $el
+      }
     }
   });
 };
 
 DmnEditor.prototype.resize = function() {
-  var modeler = this.getModeler(),
-      sheetOrCanvas;
+  var modeler = this.getModeler();
 
   if (!isImported(modeler)) {
     return;
@@ -243,14 +256,15 @@ DmnEditor.prototype.resize = function() {
 
   var viewer = modeler.getActiveViewer();
 
-  if (this.getActiveEditorName() === 'diagram') {
-    sheetOrCanvas = viewer.get('canvas');
-  } else {
-    sheetOrCanvas = viewer.get('sheet');
-  }
-
-  if (typeof sheetOrCanvas.resized === 'function') {
-    sheetOrCanvas.resized();
+  // notify active editor that the view
+  // got resized
+  switch (this.getActiveEditorName()) {
+  case 'drd':
+    viewer.get('canvas').resized();
+    break;
+  case 'decisionTable':
+    viewer.get('sheet').resized();
+    break;
   }
 };
 
@@ -290,13 +304,15 @@ DmnEditor.prototype.render = function() {
 
   return (
     <div className="dmn-editor" key={ this.id }>
-      <div className="editor-container"
-           onAppend={ this.compose('mountEditor') }
-           onRemove={ this.compose('unmountEditor') }>
+      <div
+        className="editor-container"
+        onAppend={ this.compose('mountEditor') }
+        onRemove={ this.compose('unmountEditor') }>
       </div>
-      <WarningsOverlay warnings={ warnings }
-                       onOpenLog={ this.compose('openLog') }
-                       onClose={ this.compose('hideWarnings') } />
+      <WarningsOverlay
+        warnings={ warnings }
+        onOpenLog={ this.compose('openLog') }
+        onClose={ this.compose('hideWarnings') } />
     </div>
   );
 };

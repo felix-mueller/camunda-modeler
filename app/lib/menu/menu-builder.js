@@ -7,8 +7,10 @@ var electron = require('electron'),
 
 var browserOpen = require('../util/browser-open');
 
-var merge = require('lodash/object/merge'),
-    assign = require('lodash/object/assign');
+var {
+  merge,
+  assign
+} = require('min-dash');
 
 
 function MenuBuilder(opts) {
@@ -652,26 +654,26 @@ MenuBuilder.prototype.appendSelectAll = function() {
 MenuBuilder.prototype.appendDmnActions = function() {
   var activeEditor = this.opts.state.activeEditor;
 
-  if (activeEditor === 'diagram') {
+  if (activeEditor === 'drd') {
 
     // DRD editor
-    // this.menu.append(new MenuItem({
-    //   label: 'Lasso Tool',
-    //   accelerator: 'L',
-    //   enabled: this.opts.state.inactiveInput,
-    //   click: function() {
-    //     app.emit('menu:action', 'lassoTool');
-    //   }
-    // }));
+    this.menu.append(new MenuItem({
+      label: 'Lasso Tool',
+      accelerator: 'L',
+      enabled: this.opts.state.inactiveInput,
+      click: function() {
+        app.emit('menu:action', 'lassoTool');
+      }
+    }));
 
-    // this.menu.append(new MenuItem({
-    //   label: 'Edit Label',
-    //   accelerator: 'E',
-    //   enabled: this.opts.state.elementsSelected,
-    //   click: function() {
-    //     app.emit('menu:action', 'directEditing');
-    //   }
-    // }));
+    this.menu.append(new MenuItem({
+      label: 'Edit Label',
+      accelerator: 'E',
+      enabled: this.opts.state.elementsSelected,
+      click: function() {
+        app.emit('menu:action', 'directEditing');
+      }
+    }));
 
     this.appendSeparator();
 
@@ -679,11 +681,9 @@ MenuBuilder.prototype.appendDmnActions = function() {
 
     this.appendRemoveSelection();
 
-  } else if (activeEditor === 'table') {
-    
-    // decision table editor
-    this.appendSeparator();
+  } else if (activeEditor === 'decisionTable') {
 
+    // decision table editor
     this.menu.append(new MenuItem({
       label: 'Add Rule..',
       submenu: Menu.buildFromTemplate([{
@@ -751,6 +751,24 @@ MenuBuilder.prototype.appendDmnActions = function() {
       enabled: this.opts.state.dmnClauseEditing,
       click: function() {
         app.emit('menu:action', 'removeClause');
+      }
+    }));
+
+    this.appendSeparator();
+
+    this.menu.append(new MenuItem({
+      label: 'Select Cell Above',
+      enabled: this.opts.state.dmnClauseEditing,
+      click: function() {
+        app.emit('menu:action', 'selectCellAbove');
+      }
+    }));
+
+    this.menu.append(new MenuItem({
+      label: 'Select Cell Below',
+      enabled: this.opts.state.dmnClauseEditing,
+      click: function() {
+        app.emit('menu:action', 'selectCellBelow');
       }
     }));
   }
@@ -1084,21 +1102,21 @@ MenuBuilder.prototype.get = function() {
 
 MenuBuilder.prototype.build = function() {
   return this.appendFileMenu(
-      new this.constructor(this.opts)
-        .appendNewFile()
-        .appendOpen()
-        .appendSeparator()
-        .appendSwitchTab()
-        .appendSaveFile()
-        .appendSaveAsFile()
-        .appendSaveAllFiles()
-        .appendSeparator()
-        .appendExportAs()
-        .appendCloseTab()
-        .appendSeparator()
-        .appendQuit()
-        .get()
-    )
+    new this.constructor(this.opts)
+      .appendNewFile()
+      .appendOpen()
+      .appendSeparator()
+      .appendSwitchTab()
+      .appendSaveFile()
+      .appendSaveAsFile()
+      .appendSaveAllFiles()
+      .appendSeparator()
+      .appendExportAs()
+      .appendCloseTab()
+      .appendSeparator()
+      .appendQuit()
+      .get()
+  )
     .appendEditMenu()
     .appendWindowMenu()
     .appendPluginsMenu()

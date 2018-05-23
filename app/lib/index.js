@@ -6,7 +6,13 @@ var electron = require('electron'),
 
 var path = require('path');
 
-var forEach = require('lodash/collection/forEach');
+var {
+  forEach
+} = require('min-dash');
+
+var got = require('got'),
+    fs = require('fs'),
+    FormData = require('form-data');
 
 /**
  * automatically report crash reports
@@ -24,7 +30,8 @@ var Platform = require('./platform'),
     Dialog = require('./dialog'),
     Menu = require('./menu'),
     Cli = require('./cli'),
-    Plugins = require('./plugins');
+    Plugins = require('./plugins'),
+    deploy = require('./createDeployer')({ got, fs, FormData });
 
 var browserOpen = require('./util/browser-open'),
     renderer = require('./util/renderer');
@@ -45,21 +52,25 @@ global.metaData = {
   name: app.name
 };
 
+// get directory of executable
+var appPath = path.dirname(app.getPath('exe'));
+
 var plugins = app.plugins = new Plugins({
   paths: [
     app.getPath('userData'),
-    process.cwd()
+    appPath
   ]
 });
 
 // set global modeler directory
-global.modelerDirectory = process.cwd();
+global.modelerDirectory = appPath;
 
 // bootstrap the application's menus
 //
 // TODO(nikku): remove app.menu binding when development
 // mode bootstrap issue is fixed in electron-connect
-app.menu = new Menu(process.platform,
+app.menu = new Menu(
+  process.platform,
   plugins.getPlugins()
     .map(p => {
       return {
@@ -68,7 +79,7 @@ app.menu = new Menu(process.platform,
         error: p.error
       };
     })
-  );
+);
 
 // bootstrap workspace behavior
 new Workspace(config);
@@ -111,7 +122,7 @@ if (config.get('single-instance', true)) {
   }
 }
 
-//////// client life-cycle /////////////////////////////
+// client life-cycle //////////////////
 
 renderer.on('dialog:unrecognized-file', function(file, done) {
   dialog.showDialog('unrecognizedFile', { name: file.name });
@@ -150,6 +161,39 @@ renderer.on('dialog:saving-denied', function(done) {
 
 renderer.on('dialog:content-changed', function(done) {
   dialog.showDialog('contentChanged', done);
+});
+
+renderer.on('dialog:empty-file', function(options, done) {
+  dialog.showDialog('emptyFile', {
+    fileType: options.fileType,
+    name: options.name
+  }, done);
+});
+
+renderer.on('deploy', function(data, done) {
+  var workspaceConfig = config.get('workspace', { endpoints: [] });
+
+  var endpointUrl = (workspaceConfig.endpoints || [])[0];
+
+  if (!endpointUrl) {
+
+    let err = new Error('no deploy endpoint configured');
+
+    console.error('failed to deploy', err);
+    return done(err.message);
+  }
+
+  deploy(endpointUrl, data, function(err, result) {
+
+    if (err) {
+      console.error('failed to deploy', err);
+
+      return done(err.message);
+    }
+
+    done(null, result);
+  });
+
 });
 
 
@@ -215,7 +259,7 @@ renderer.on('file:open', function(filePath, done) {
 });
 
 
-//////// open file handling //////////////////////////////
+// open file handling //////////////////
 
 // list of files that should be opened by the editor
 app.openFiles = [];
@@ -272,6 +316,31 @@ renderer.on('client:ready', function() {
   app.emit('app:client-ready');
 });
 
+app.on('web-contents-created', (event, webContents) => {
+
+  // open all external links in new window
+  webContents.on('new-window', function(event, url) {
+    event.preventDefault();
+
+    browserOpen(url);
+  });
+
+  // disable web-view (not used)
+  webContents.on('will-attach-webview', () => {
+    event.preventDefault();
+  });
+
+  // open in-page links externally by default
+  // @see https://github.com/electron/electron/issues/1344#issuecomment-171516636
+  webContents.on('will-navigate', (event, url) => {
+
+    if (url !== webContents.getURL()) {
+      event.preventDefault();
+
+      browserOpen(url);
+    }
+  });
+});
 
 /**
  * Create the main window that represents the editor.
@@ -288,12 +357,6 @@ app.createEditorWindow = function() {
   mainWindow.maximize();
 
   mainWindow.loadURL('file://' + path.resolve(__dirname + '/../../public/index.html'));
-
-  mainWindow.webContents.on('new-window', function(event, url) {
-    event.preventDefault();
-
-    browserOpen(url);
-  });
 
   // handling case when user clicks on window close button
   mainWindow.on('close', function(e) {

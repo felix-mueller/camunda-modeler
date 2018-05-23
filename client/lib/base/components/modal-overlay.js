@@ -2,68 +2,20 @@
 
 var inherits = require('inherits');
 
-var BaseComponent = require('base/component');
+import {
+  closest as domClosest
+} from 'min-dom';
 
-var isMac = require('util/is-mac'),
-    ensureOpts = require('util/ensure-opts');
+var BaseComponent = require('base/component'),
+    DeployDiagramOverlay = require('./overlays/deploy-diagram-overlay'),
+    Shortcuts = require('./overlays/shortcuts-overlay'),
+    ConfigureEndpointOverlay = require('./overlays/configure-endpoint-overlay');
 
+var ensureOpts = require('util/ensure-opts');
 
-function hasClass(node, cls) {
-  if (!node.classList) {
-    return;
-  }
-
-  return node.classList.contains(cls);
-}
 
 function ModalOverlay(options) {
-  var modifierKey = 'Control';
-
-  if (isMac()) {
-    modifierKey = 'Command';
-  }
-
-  var SHORTCUTS_OVERLAY = (
-    <div className="keyboard-shortcuts">
-      <h2>Keyboard Shortcuts</h2>
-      <p>
-        The following special shortcuts can be used on opened diagrams.
-      </p>
-      <table>
-        <tbody>
-          <tr>
-            <td>Add Line Feed (in text box)</td>
-            <td className="binding"><code>Shift + Enter</code></td>
-          </tr>
-          <tr>
-            <td>Scrolling (Vertical)</td>
-            <td className="binding">{ modifierKey } + Mouse Wheel</td>
-          </tr>
-          <tr>
-            <td>Scrolling (Horizontal)</td>
-            <td className="binding">{ modifierKey } + Shift + Mouse Wheel</td>
-          </tr>
-          <tr>
-            <td>Add element to selection</td>
-            <td className="binding">{ modifierKey } + Mouse Click</td>
-          </tr>
-          <tr>
-            <td>Select multiple elements (Lasso Tool)</td>
-            <td className="binding">{ modifierKey } + Mouse Drag</td>
-          </tr>
-        </tbody>
-      </table>
-      <p>
-        Find additional shortcuts on individual items in the application menu.
-      </p>
-    </div>
-  );
-
-  var availableContent = {
-    shortcuts: SHORTCUTS_OVERLAY
-  };
-
-  ensureOpts([ 'events', 'isActive', 'content' ], options);
+  ensureOpts([ 'events', 'isActive', 'content', 'endpoints', 'initializeState' ], options);
 
   BaseComponent.call(this, options);
 
@@ -72,6 +24,41 @@ function ModalOverlay(options) {
   if (!(this instanceof ModalOverlay)) {
     return new ModalOverlay(options);
   }
+
+  this.closeOverlay = function(event, forceClose) {
+    var target = event && event.target;
+
+    if (!this._content || !forceClose && target && domClosest(target, '.overlay-container')) {
+      return;
+    }
+
+    this._content = null;
+
+    events.emit('dialog-overlay:toggle', false);
+  };
+
+  var SHORTCUTS_OVERLAY = <Shortcuts />;
+
+  var CONFIGURE_ENDPOINT_OVERLAY = (
+    <ConfigureEndpointOverlay
+      closeOverlay={ this.compose(this.closeOverlay, true) }
+      events={ this.events }
+      endpoints={ options.endpoints } />
+  );
+
+  var DEPLOY_DIAGRAM_OVERLAY = (
+    <DeployDiagramOverlay
+      closeOverlay={ this.compose(this.closeOverlay, true) }
+      events={ this.events }
+      initializeState={ this.initializeState }
+      setState={ this.setState } />
+  );
+
+  var availableContent = {
+    shortcuts: SHORTCUTS_OVERLAY,
+    configureEndpoint: CONFIGURE_ENDPOINT_OVERLAY,
+    deployDiagram: DEPLOY_DIAGRAM_OVERLAY
+  };
 
   this.getContent = function(content) {
     this._content = availableContent[content];
@@ -83,17 +70,6 @@ function ModalOverlay(options) {
     return this._content;
   };
 
-  this.closeOverlay = function(event) {
-    var target = event.target;
-
-    if (!this._content || !hasClass(target, 'dialog-overlay')) {
-      return;
-    }
-
-    this._content = null;
-
-    events.emit('dialog-overlay:toggle', false);
-  };
 
   this.render = function() {
 

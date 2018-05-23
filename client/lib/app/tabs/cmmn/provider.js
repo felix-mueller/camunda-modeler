@@ -4,13 +4,11 @@ var debug = require('debug')('cmmn-provider');
 
 var ensureOpts = require('util/ensure-opts');
 
-var isUnsaved = require('util/file/is-unsaved');
-
 var initialXML = require('./initial.cmmn');
 
 var CmmnTab = require('./cmmn-tab');
 
-var ids = require('ids')();
+var ids = require('ids')([ 32, 36, 1 ]);
 
 
 /**
@@ -26,17 +24,20 @@ function CmmnProvider(options) {
 
   var createdFiles = 0;
 
-  this.createNewFile = function() {
-    // increment counter
-    createdFiles++;
+  this.createNewFile = function(attrs) {
+    attrs = attrs || {};
 
     debug('create CMMN file');
 
+    // make ID ROBUST
+    var xml = initialXML.replace('{{ ID }}', ids.next());
+
     return {
       fileType: 'cmmn',
-      name: 'diagram_' + createdFiles + '.cmmn',
-      path: isUnsaved.PATH,
-      contents: initialXML
+      name: attrs.name || 'diagram_' + (++createdFiles) + '.cmmn',
+      path: attrs.path || '',
+      contents: xml,
+      isUnsaved: true
     };
   };
 

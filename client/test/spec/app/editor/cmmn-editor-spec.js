@@ -273,17 +273,27 @@ describe('CmmnEditor', function() {
 
       // when
       // dragging toggle
-      simulateEvent(element, 'dragstart', { screenX: 0, screenY: 0 });
-      simulateEvent(element, 'drag', { screenX: 50, screenY: 0 });
+      simulateEvent(element, 'dragstart', { clientX: 0, clientY: 0 });
+      simulateEvent(element, 'drag', { clientX: 50, clientY: 0 });
 
     });
 
+
     it('should call state if input is active', function() {
+
       // given
       var stateSpy = spy(editor, 'updateState');
 
+      var targetMock = document.createElement('div');
+
+      targetMock.className = 'cmmn-editor';
+
+      var inputMock = document.createElement('input');
+
+      targetMock.appendChild(inputMock);
+
       // when
-      editor.emit('input:focused', { target: { tagName: 'TEXTAREA' } });
+      editor.emit('input:focused', { target: inputMock });
 
       // then
       expect(stateSpy).to.have.been.called;

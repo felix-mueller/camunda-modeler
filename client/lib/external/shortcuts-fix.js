@@ -2,7 +2,9 @@
 
 var isInput = require('util/dom/is-input').isInput;
 
-var domClosest = require('min-dom/lib/closest');
+import {
+  closest as domClosest
+} from 'min-dom';
 
 var debug = require('debug')('shortcuts');
 
@@ -80,7 +82,7 @@ function ShortcutsFix(app, isMac) {
 module.exports = ShortcutsFix;
 
 
-///////// helpers ///////////////////////////////////////
+// helpers //////////////////
 
 function isPropertiesInput(el) {
   return el && domClosest(el, '.properties');

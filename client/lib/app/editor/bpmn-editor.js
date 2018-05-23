@@ -2,22 +2,28 @@
 
 var inherits = require('inherits');
 
-var assign = require('lodash/object/assign');
+import {
+  assign
+} from 'min-dash';
 
-var domify = require('domify');
+import {
+  domify,
+  closest as domClosest
+} from 'min-dom';
 
 var DiagramEditor = require('./diagram-editor');
 
-var BpmnJS = require('bpmn-js/lib/Modeler');
+var BpmnJS = require('bpmn-js/lib/Modeler').default;
 
-var diagramOriginModule = require('diagram-js-origin'),
+var diagramOriginModule = require('diagram-js-origin').default,
     executableFixModule = require('./bpmn/executable-fix'),
     clipboardModule = require('./bpmn/clipboard'),
     minimapModule = require('diagram-js-minimap'),
     propertiesPanelModule = require('bpmn-js-properties-panel'),
     propertiesProviderModule = require('bpmn-js-properties-panel/lib/provider/camunda'),
     camundaModdlePackage = require('camunda-bpmn-moddle/resources/camunda'),
-    camundaModdleExtension = require('camunda-bpmn-moddle/lib');
+    camundaModdleExtension = require('camunda-bpmn-moddle/lib'),
+    signavioCompat = require('bpmn-js-signavio-compat').default;
 
 var WarningsOverlay = require('base/components/warnings-overlay');
 
@@ -72,7 +78,7 @@ function BpmnEditor(options) {
 
   // update state so that it reflects that an 'input' is active
   this.on('input:focused', (event) => {
-    if (isInput.isInput(event.target)) {
+    if (isInput.isInput(event.target) && domClosest(event.target, '.bpmn-editor')) {
       this.updateState();
     }
   });
@@ -359,8 +365,10 @@ BpmnEditor.prototype.getModeler = function() {
     });
 
     // log errors into log
-    this.modeler.on('error', 1500, (error) => {
-      this.emit('log', [[ 'error', error.error ]]);
+    this.modeler.on('error', 1500, ({ error }) => {
+      this.emit('log', [
+        [ 'error', error.stack ]
+      ]);
       this.emit('log:toggle', { open: true });
     });
 
@@ -398,7 +406,7 @@ BpmnEditor.prototype.createModeler = function($el, $propertiesEl) {
 
   var pluginModules = this.plugins.get('bpmn.modeler.additionalModules');
 
-  var modeler =  new BpmnJS({
+  var modeler = new BpmnJS({
     container: $el,
     position: 'absolute',
     additionalModules: [
@@ -409,7 +417,8 @@ BpmnEditor.prototype.createModeler = function($el, $propertiesEl) {
       propertiesPanelModule,
       propertiesProviderModule,
       propertiesPanelConfig,
-      camundaModdleExtension
+      camundaModdleExtension,
+      signavioCompat
     ].concat(pluginModules),
     elementTemplates: elementTemplatesLoader,
     moddleExtensions: { camunda: camundaModdlePackage },
@@ -477,33 +486,44 @@ BpmnEditor.prototype.render = function() {
   var warnings = getWarnings(this.lastImport);
 
   return (
-    <div className="bpmn-editor"
-         key={ this.id + '#bpmn' }
-         onFocusin={ this.compose('updateState') }
-         onContextmenu={ this.compose('openContextMenu') }>
-      <div className="editor-container"
-           onAppend={ this.compose('mountEditor') }
-           onRemove={ this.compose('unmountEditor') }>
+    <div
+      className="bpmn-editor"
+      key={ this.id + '#bpmn' }
+      onFocusin={ this.compose('updateState') }
+      onContextmenu={ this.compose('openContextMenu') }>
+      <div
+        className="editor-container"
+        onAppend={ this.compose('mountEditor') }
+        onRemove={ this.compose('unmountEditor') }>
       </div>
       <div className="properties" style={ propertiesStyle } tabIndex="0">
-        <div className="toggle"
-             ref="properties-toggle"
-             draggable="true"
-             onClick={ this.compose('toggleProperties') }
-             onDragstart={ dragger(this.compose('resizeProperties', copy(propertiesLayout))) }>
+        <div
+          className="toggle"
+          ref="properties-toggle"
+          draggable="true"
+          onClick={ this.compose('toggleProperties') }
+          onDragstart={
+            dragger(this.compose('resizeProperties', copy(propertiesLayout)))
+          }>
           Properties Panel
         </div>
-        <div className="resize-handle"
-             draggable="true"
-             onDragStart={ dragger(this.compose('resizeProperties', copy(propertiesLayout))) }></div>
-        <div className="properties-container"
-             onAppend={ this.compose('mountProperties') }
-             onRemove={ this.compose('unmountProperties') }>
+        <div
+          className="resize-handle"
+          draggable="true"
+          onDragStart={
+            dragger(this.compose('resizeProperties', copy(propertiesLayout)))
+          }>
+        </div>
+        <div
+          className="properties-container"
+          onAppend={ this.compose('mountProperties') }
+          onRemove={ this.compose('unmountProperties') }>
         </div>
       </div>
-      <WarningsOverlay warnings={ warnings }
-                       onOpenLog={ this.compose('openLog') }
-                       onClose={ this.compose('hideWarnings') } />
+      <WarningsOverlay
+        warnings={ warnings }
+        onOpenLog={ this.compose('openLog') }
+        onClose={ this.compose('hideWarnings') } />
     </div>
   );
 };

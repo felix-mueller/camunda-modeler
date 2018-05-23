@@ -1,12 +1,15 @@
 'use strict';
 
-var merge = require('lodash/object/merge'),
-    bind = require('lodash/function/bind'),
-    assign = require('lodash/object/assign'),
-    find = require('lodash/collection/find'),
-    filter = require('lodash/collection/filter'),
-    map = require('lodash/collection/map'),
-    debounce = require('lodash/function/debounce');
+import {
+  merge,
+  bind,
+  assign,
+  find,
+  filter,
+  map,
+  matchPattern,
+  debounce
+} from 'min-dash';
 
 var inherits = require('inherits');
 
@@ -54,6 +57,9 @@ function App(options) {
   ], options);
 
   BaseComponent.call(this, options);
+
+
+  this.state = {};
 
   this.layout = {
     propertiesPanel: {
@@ -252,6 +258,29 @@ function App(options) {
           icon: 'icon-distribute-vertically-tool',
           label: 'Distribute Elements Vertically',
           action: this.compose('triggerAction', 'distributeVertically')
+        }),
+      ]
+    },
+    editor: {
+      visible: false,
+      buttons: [
+        Separator(),
+        MultiButton({
+          id: 'deploy',
+          choices: [
+            {
+              id: 'deploy-btn',
+              icon: 'icon-deploy',
+              label: 'Deploy Current Diagram',
+              action: this.compose('triggerAction', 'open-deployment-overlay'),
+              primary: true
+            },
+            {
+              id: 'deploy-endpoint-config',
+              label: 'Configure Deployment Endpoint',
+              action: this.compose('triggerAction', 'open-endpoint-overlay')
+            }
+          ]
         })
       ]
     }
@@ -274,6 +303,14 @@ function App(options) {
   this.fileHistory = [];
 
 
+  this.events.on('deploy:endpoint:update', endpoints => {
+    this.persistEndpoints(endpoints);
+  });
+
+  this.events.on('deploy', (payload, done) => {
+    this.triggerAction('deploy', payload, done);
+  });
+
   this.events.on('workspace:changed', debounce((done) => {
     this.persistWorkspace((err) => {
       debug('workspace persisted?', err);
@@ -288,7 +325,7 @@ function App(options) {
 
   this.events.on('tools:state-changed', (tab, newState) => {
 
-    var button;
+    var button, selectedEditor;
 
     if (this.activeTab !== tab) {
       return debug('Warning: state updated on incative tab! This should never happen!');
@@ -311,8 +348,21 @@ function App(options) {
       }
     });
 
+    // check if the selected tab is an editor to make the editor option visible or not
+    selectedEditor = [ 'bpmn', 'cmmn', 'dmn' ].filter(key => newState[key])[0];
+
+    if (selectedEditor) {
+      this.menuEntries.editor.visible = true;
+      this.menuEntries.editor.name = selectedEditor;
+    } else {
+      this.menuEntries.editor.visible = false;
+      this.menuEntries.editor.name = null;
+    }
+
     // update export button state
-    button = find(this.menuEntries.modeler.buttons, { id: 'export-as' });
+    button = find(this.menuEntries.modeler.buttons, matchPattern({
+      id: 'export-as'
+    }));
 
     button.choices = (newState['exportAs'] || []).map((type) => {
       return EXPORT_BUTTONS[type];
@@ -336,8 +386,12 @@ function App(options) {
     });
 
     // update set color button state
-    button = find(this.menuEntries.bpmn.buttons, { id: 'set-color' });
+    button = find(this.menuEntries.bpmn.buttons, matchPattern({
+      id: 'set-color'
+    }));
     button.disabled = !newState.elementsSelected;
+
+
 
     this.events.emit('changed');
   });
@@ -367,7 +421,7 @@ function App(options) {
 
   this.events.on('dialog-overlay:toggle', this.compose('toggleOverlay'));
 
-  ///////// public API yea! //////////////////////////////////////
+  // public API yea! //////////////////
 
   /**
    * Listen to an app event
@@ -409,9 +463,11 @@ App.prototype.render = function() {
   var html =
     <div className="app" onDragover={ fileDrop(this.compose('openFiles')) }>
       <ModalOverlay
+        initializeState={ this.initializeState.bind(this) }
         isActive={ this._activeOverlay }
         content={ this._overlayContent }
-        events={ this.events } />
+        events={ this.events }
+        endpoints={ this.endpoints } />
       <MenuBar entries={ this.menuEntries } />
       <Tabbed
         className="main"
@@ -489,39 +545,79 @@ App.prototype.openFiles = function(files) {
   var dialog = this.dialog;
 
   series(files, (file, done) => {
-    var type = parseFileType(file);
 
-    if (!type) {
-      dialog.unrecognizedFileError(file, function(err) {
-        debug('open-diagram canceled: unrecognized file type', file);
+    if (!file.contents.length) {
 
-        return done(err);
-      });
+      // handle empty files
+      var fileType = file.name.split('.').pop();
 
-    } else {
-      if (namespace.hasOldNamespace(file.contents)) {
+      if ([ 'bpmn', 'dmn', 'cmmn' ].indexOf(fileType) === -1) {
+        return dialog.unrecognizedFileError(file, function(err) {
+          debug('open-diagram canceled: unrecognized file type', file);
 
-        dialog.convertNamespace(type, (err, answer) => {
-          if (err) {
-            debug('open-diagram error: %s', err);
-
-            return done(err);
-          }
-
-          if (isCancel(answer)) {
-            return done(null);
-          }
-
-          if (answer === 'yes') {
-            file.contents = namespace.replace(file.contents, type);
-          }
-
-          done(null, assign({}, file, { fileType: type }));
+          return done(err);
         });
-      } else {
-        done(null, assign({}, file, { fileType: type }));
       }
+
+      var options = {
+        fileType: fileType,
+        name: file.name
+      };
+
+      dialog.openEmptyFile(options, (err, answer) => {
+
+        if (isCancel(answer)) {
+          return done();
+        }
+
+        if (answer === 'create') {
+          var tabProvider = this._findTabProvider(fileType);
+
+          return done(null, tabProvider.createNewFile({
+            name: file.name,
+            path: file.path
+          }));
+        }
+      });
+    } else {
+      var type = parseFileType(file);
+
+      if (!type) {
+        dialog.unrecognizedFileError(file, function(err) {
+          debug('open-diagram canceled: unrecognized file type', file);
+
+          return done(err);
+        });
+
+      } else {
+
+        // handle old namespaces
+        if (namespace.hasOldNamespace(file.contents)) {
+
+          dialog.convertNamespace(type, (err, answer) => {
+            if (err) {
+              debug('open-diagram error: %s', err);
+
+              return done(err);
+            }
+
+            if (isCancel(answer)) {
+              return done(null);
+            }
+
+            if (answer === 'yes') {
+              file.contents = namespace.replace(file.contents, type);
+            }
+
+            done(null, assign({}, file, { fileType: type }));
+          });
+        } else {
+          done(null, assign({}, file, { fileType: type }));
+        }
+      }
+
     }
+
   }, (err, diagramFiles) => {
     if (err) {
       return debug('open-diagram canceled: %s', err);
@@ -540,7 +636,6 @@ App.prototype.openFiles = function(files) {
  * Open a new tab based on a file chosen by the user.
  */
 App.prototype.openDiagram = function() {
-
   var dialog = this.dialog;
 
   var cwd = getFilePath(this.activeTab);
@@ -561,11 +656,29 @@ App.prototype.openDiagram = function() {
 };
 
 
-App.prototype.triggerAction = function(action, options) {
+App.prototype.triggerAction = function(action, firstArg, secondArg) {
+
+  /**
+   * done: callback passed
+   * this makes sure to support passing callback to this function
+   * callback can be passed in 2nd or 3rd position
+   */
+  var self = this,
+      options = firstArg,
+      done = function() {};
+
+  if (typeof firstArg === 'function') {
+    done = firstArg;
+    options = secondArg;
+  } else if (typeof secondArg === 'function') {
+    done = secondArg;
+  }
 
   debug('trigger-action', action, options);
 
   var activeTab = this.activeTab;
+  var browser = this.browser;
+
 
   if (action === 'select-tab') {
     if (options === 'next') {
@@ -650,6 +763,56 @@ App.prototype.triggerAction = function(action, options) {
 
   if (action === 'export-tab' && activeTab.exportAs) {
     return this.exportTab(activeTab, options.type);
+  }
+
+  if (action === 'open-deployment-overlay') {
+
+    // clear state of deployment modal
+    this.setState({ DeploymentConfig: { } });
+
+    // save tab before opening deployment modal
+    return this.saveTab(activeTab, function(err) {
+
+      if (err) {
+        console.error('deploy:bpmn ' + err);
+
+        return done(err);
+      }
+
+      return self.toggleOverlay('deployDiagram');
+    });
+  }
+
+  if (action === 'open-endpoint-overlay') {
+    return this.toggleOverlay('configureEndpoint');
+  }
+
+  if (action === 'deploy') {
+
+    // make sure to save the active tab's file before deploying
+    return this.saveTab(activeTab, function(err) {
+      if (err) {
+        console.error('deploy ' + err);
+
+        return done(err);
+      }
+
+      var payload = {
+        file: activeTab.file,
+        deploymentName: options.deploymentName,
+        tenantId: options.tenantId
+      };
+
+      browser.send('deploy', payload, function(err, response) {
+        if (err) {
+          console.error('deploy ' + err);
+
+          return done(err);
+        }
+
+        return done();
+      });
+    });
   }
 
   // forward other actions to active tab
@@ -915,7 +1078,7 @@ App.prototype.saveTab = function(tab, options, done) {
 
     debug('exported %s \n%s', tab.id, file.contents);
 
-    var saveAs = isUnsaved(file) || options && options.saveAs;
+    var saveAs = !file.path || options && options.saveAs;
 
     this.saveFile(file, saveAs, updateTab);
   });
@@ -956,6 +1119,8 @@ App.prototype.saveFile = function(file, saveAs, done) {
   }
 
   if (!saveAs) {
+    file.isUnsaved = false;
+
     return fileSystem.writeFile(assign({}, file), handleFileError);
   }
 
@@ -972,6 +1137,8 @@ App.prototype.saveFile = function(file, saveAs, done) {
     }
 
     debug('save file %s as %s', file.name, suggestedFile.path);
+
+    file.isUnsaved = false;
 
     fileSystem.writeFile(assign({}, file, suggestedFile), handleFileError);
   });
@@ -1070,7 +1237,7 @@ App.prototype.closeTab = function(tab, done, hints) {
       file;
 
   if (typeof tab === 'string') {
-    tab = exists = find(this.tabs, { id: tab });
+    tab = exists = find(this.tabs, matchPattern({ id: tab }));
   } else {
     exists = contains(tabs, tab);
   }
@@ -1242,6 +1409,9 @@ App.prototype.persistWorkspace = function(done) {
   // let others store stuff, too
   this.events.emit('workspace:persist', config);
 
+  // store bpmn deploy url
+  config.endpoints = this.endpoints;
+
   // actually save
   this.workspace.save(config, (err, config) => {
     this.events.emit('workspace:persisted', err, config);
@@ -1269,7 +1439,10 @@ App.prototype.restoreWorkspace = function(done) {
         open: false,
         height: 150
       }
-    }
+    },
+    endpoints: [
+      'http://localhost:8080/engine-rest/deployment/create'
+    ]
   };
 
 
@@ -1290,6 +1463,8 @@ App.prototype.restoreWorkspace = function(done) {
       this.activeTab = this.tabs[workspaceConfig.activeTab];
     }
 
+    this.endpoints = workspaceConfig.endpoints || defaultWorkspace.endpoints;
+
     this.events.emit('layout:update', workspaceConfig.layout);
 
     this.events.emit('changed');
@@ -1309,7 +1484,9 @@ App.prototype.restoreWorkspace = function(done) {
  * @param  {Boolean} isDisabled
  */
 App.prototype.updateMenuEntry = function(group, id, isDisabled) {
-  var button = find(this.menuEntries[group].buttons, { id: id });
+  var button = find(this.menuEntries[group].buttons, matchPattern({
+    id: id
+  }));
 
   button.disabled = isDisabled;
 
@@ -1426,7 +1603,7 @@ App.prototype.closeAllTabs = function() {
  */
 App.prototype.closeOtherTabs = function(tab) {
   if (tab && typeof tab === 'string') {
-    tab = find(this.tabs, { id: tab });
+    tab = find(this.tabs, matchPattern({ id: tab }));
   } else {
     tab = contains(this.tabs, tab) ? tab : null;
   }
@@ -1476,6 +1653,16 @@ App.prototype.quit = function() {
   }, {
     skipIfDiscardChanges: true
   });
+};
+
+
+/**
+ * Changes and persist bpmn deployment url
+ * @param url
+ */
+App.prototype.persistEndpoints = function(_endpoints) {
+  this.endpoints = _endpoints;
+  this.events.emit('workspace:changed');
 };
 
 var rdebug = require('debug')('app - external change');
@@ -1540,6 +1727,54 @@ App.prototype.recheckTabContent = function(tab) {
     });
 
   });
+};
+
+/**
+ * Sets new App state
+ * @param newState
+ */
+App.prototype.setState = function(newState) {
+  this.state = assign({}, this.state, newState);
+};
+
+/**
+ * Initializes state of a specific component
+ * @param key
+ * @param value
+ */
+App.prototype.initializeState = function(options) {
+  if (!options || options && (!options.key || !options.self)) {
+    return new Error('key must be provided');
+  }
+
+  var self = options.self,
+      key = options.key,
+      initialState = options.self.initialState,
+      newAppState = {};
+
+
+  if (this.state[key]) {
+    self.state = this.state[key];
+  } else {
+    newAppState[key] = initialState;
+
+    this.setState(newAppState);
+
+    self.state = newAppState[key];
+  }
+
+
+  self.setState = (newState) => {
+    var state = this.state[key];
+
+    newAppState[key] = assign({}, state, newState);
+
+    this.setState(newAppState);
+
+    self.state = newAppState[key];
+
+    this.emit('changed');
+  };
 };
 
 

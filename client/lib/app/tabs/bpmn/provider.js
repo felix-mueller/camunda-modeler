@@ -4,13 +4,11 @@ var debug = require('debug')('bpmn-provider');
 
 var ensureOpts = require('util/ensure-opts');
 
-var isUnsaved = require('util/file/is-unsaved');
-
 var initialXML = require('./initial.bpmn');
 
 var BpmnTab = require('./bpmn-tab');
 
-var ids = require('ids')();
+var ids = require('ids')([ 32, 36, 1 ]);
 
 
 /**
@@ -26,18 +24,21 @@ function BpmnProvider(options) {
 
   var createdFiles = 0;
 
-  this.createNewFile = function() {
-    // increment counter
-    createdFiles++;
+  this.createNewFile = function(attrs) {
+    attrs = attrs || {};
 
     debug('create BPMN file');
 
+    // make ID ROBUST
+    var xml = initialXML.replace('{{ ID }}', ids.next());
+
     return {
       fileType: 'bpmn',
-      name: 'diagram_' + createdFiles + '.bpmn',
-      path: isUnsaved.PATH,
-      contents: initialXML,
-      isInitial: true
+      name: attrs.name || 'diagram_' + (++createdFiles) + '.bpmn',
+      path: attrs.path || '',
+      contents: xml,
+      isInitial: true,
+      isUnsaved: true
     };
   };
 

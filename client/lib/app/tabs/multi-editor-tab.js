@@ -12,9 +12,11 @@ var isUnsaved = require('util/file/is-unsaved'),
 
 var Tab = require('base/components/tab');
 
-var assign = require('lodash/object/assign'),
-    find = require('lodash/collection/find');
-
+import {
+  assign,
+  find,
+  matchPattern
+} from 'min-dash';
 
 /**
  * A tab holding a number of editors for a given file.
@@ -160,7 +162,9 @@ MultiEditorTab.prototype.getEditor = function(id) {
   var editor;
 
   if (typeof id === 'string') {
-    editor = find(this.editors, { id: this.id + '#' + id });
+    editor = find(this.editors, matchPattern({
+      id: this.id + '#' + id
+    }));
   } else {
     editor = id;
   }
@@ -371,9 +375,10 @@ MultiEditorTab.prototype.render = function() {
         {
           this.editors.map((editor) => {
             return (
-              <a className={ 'tab ' + (this.activeEditor === editor ? 'active' : '') }
-                   ref={ editor.shortId + '-switch' }
-                   onClick={ compose('showEditor', editor) }>
+              <a
+                className={ 'tab ' + (this.activeEditor === editor ? 'active' : '') }
+                ref={ editor.shortId + '-switch' }
+                onClick={ compose('showEditor', editor) }>
                 { editor.label }
               </a>
             );

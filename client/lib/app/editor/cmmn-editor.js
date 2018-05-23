@@ -2,15 +2,20 @@
 
 var inherits = require('inherits');
 
-var assign = require('lodash/object/assign');
+import {
+  assign
+} from 'min-dash';
 
-var domify = require('domify');
+import {
+  domify,
+  closest as domClosest
+} from 'min-dom';
 
 var DiagramEditor = require('./diagram-editor');
 
 var CmmnJS = require('cmmn-js/lib/Modeler');
 
-var DiagramJSOrigin = require('diagram-js-origin'),
+var DiagramJSOrigin = require('diagram-js-origin').default,
     propertiesPanelModule = require('cmmn-js-properties-panel'),
     propertiesProviderModule = require('cmmn-js-properties-panel/lib/provider/camunda'),
     camundaModdlePackage = require('camunda-cmmn-moddle/resources/camunda');
@@ -59,7 +64,7 @@ function CmmnEditor(options) {
 
   // update state so that it reflects that an 'input' is active
   this.on('input:focused', function(event) {
-    if (isInput.isInput(event.target)) {
+    if (isInput.isInput(event.target) && domClosest(event.target, '.cmmn-editor')) {
       this.updateState();
     }
   });
@@ -284,8 +289,10 @@ CmmnEditor.prototype.getModeler = function() {
     });
 
     // log errors into log
-    this.modeler.on('error', 1500, (error) => {
-      this.emit('log', [[ 'error', error.error ]]);
+    this.modeler.on('error', 1500, ({ error }) => {
+      this.emit('log', [
+        [ 'error', error.stack ]
+      ]);
       this.emit('log:toggle', { open: true });
     });
   }
@@ -377,32 +384,38 @@ CmmnEditor.prototype.render = function() {
   var warnings = getWarnings(this.lastImport);
 
   return (
-    <div className="cmmn-editor"
-         key={ this.id + '#cmmn' }
-         onFocusin={ this.compose('updateState') }>
-      <div className="editor-container"
-           onAppend={ this.compose('mountEditor') }
-           onRemove={ this.compose('unmountEditor') }>
+    <div
+      className="cmmn-editor"
+      key={ this.id + '#cmmn' }
+      onFocusin={ this.compose('updateState') }>
+      <div
+        className="editor-container"
+        onAppend={ this.compose('mountEditor') }
+        onRemove={ this.compose('unmountEditor') }>
       </div>
       <div className="properties" style={ propertiesStyle } tabIndex="0">
-        <div className="toggle"
-             ref="properties-toggle"
-             draggable="true"
-             onClick={ this.compose('toggleProperties') }
-             onDragstart={ dragger(this.compose('resizeProperties', copy(propertiesLayout))) }>
+        <div
+          className="toggle"
+          ref="properties-toggle"
+          draggable="true"
+          onClick={ this.compose('toggleProperties') }
+          onDragstart={ dragger(this.compose('resizeProperties', copy(propertiesLayout))) }>
           Properties Panel
         </div>
-        <div className="resize-handle"
-             draggable="true"
-             onDragStart={ dragger(this.compose('resizeProperties', copy(propertiesLayout))) }></div>
-        <div className="properties-container"
-             onAppend={ this.compose('mountProperties') }
-             onRemove={ this.compose('unmountProperties') }>
+        <div
+          className="resize-handle"
+          draggable="true"
+          onDragStart={ dragger(this.compose('resizeProperties', copy(propertiesLayout))) }></div>
+        <div
+          className="properties-container"
+          onAppend={ this.compose('mountProperties') }
+          onRemove={ this.compose('unmountProperties') }>
         </div>
       </div>
-      <WarningsOverlay warnings={ warnings }
-                       onOpenLog={ this.compose('openLog') }
-                       onClose={ this.compose('hideWarnings') } />
+      <WarningsOverlay
+        warnings={ warnings }
+        onOpenLog={ this.compose('openLog') }
+        onClose={ this.compose('hideWarnings') } />
     </div>
   );
 };

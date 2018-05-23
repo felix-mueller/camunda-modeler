@@ -1,6 +1,8 @@
 'use strict';
 
-var forEach = require('lodash/collection/forEach');
+import {
+  forEach
+} from 'min-dash';
 
 var ACTIVITI_NS = 'http://activiti.org/bpmn',
     CAMUNDA_NS = 'http://camunda.org/schema/1.0/bpmn';
@@ -51,7 +53,7 @@ module.exports.replaceNamespaceURL = replaceNamespaceURL;
  * xmlns:prefix="http://activiti.org/bpmn"
  */
 function grabNamespacePrefix(xml) {
-  var pattern = /xmlns\:([A-z0-9.-]+)\=\"http\:\/\/(activiti\.org|camunda\.org\/schema\/1\.0)\/bpmn\"/,
+  var pattern = /xmlns:([A-z0-9.-]+)="http:\/\/(activiti\.org|camunda\.org\/schema\/1\.0)\/bpmn"/,
       match = xml.match(pattern);
 
   if (!match) {

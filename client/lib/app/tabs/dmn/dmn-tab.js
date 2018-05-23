@@ -2,7 +2,9 @@
 
 var inherits = require('inherits');
 
-var assign = require('lodash/object/assign');
+import {
+  assign
+} from 'min-dash';
 
 var DmnEditor = require('../../editor/dmn-editor'),
     XMLEditor = require('../../editor/xml-editor'),
@@ -49,14 +51,17 @@ DmnTab.prototype.stateChanged = function(newState) {
     activeEditorName = editor.getActiveEditorName();
 
     switch (activeEditorName) {
-    case 'table':
-      label = 'Table';
+    case 'decisionTable':
+      label = 'Decision Table';
       break;
-    case 'diagram':
-      label = 'Diagram';
+    case 'drd':
+      label = 'DRD';
+      break;
+    case 'literalExpression':
+      label = 'Literal Expression';
       break;
     default:
-      label = 'Literal Expression';
+      label = 'Unknown';
     }
 
     editor.name = editor.label = label;
